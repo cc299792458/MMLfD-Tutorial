@@ -1,32 +1,44 @@
+import os
 import copy
 import torch
 import matplotlib.pyplot as plt
 
-from loader.Pouring_dataset import Pouring
 from models.mmp import MMP
-from models.modules import FC_SE32vec, FC_vec2SE3
+# from loader.Pouring_dataset import Pouring
+# from models.modules import FC_SE32vec, FC_vec2SE3
+from loader.Toy_dataset import Toy
+from models.modules import FC_traj2latent, FC_latent2traj
+
 
 def main():
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    use_pretrained = True
+    use_pretrained = os.path.exists("results/mmp.pkl")
 
-    ds = Pouring()
+    # ds = Pouring()
+    ds = Toy()
     dl = torch.utils.data.DataLoader(ds, batch_size=10)
     
-    encoder = FC_SE32vec(
-        in_chan=480 * 12,
+    # encoder = FC_SE32vec(
+    #     in_chan=480 * 12,
+    #     out_chan=2,
+    #     l_hidden=[2048, 1024, 512, 256, ],
+    #     activation=['gelu', 'gelu', 'gelu', 'gelu',],
+    #     out_activation='linear'
+    # )
+    
+    # decoder = FC_vec2SE3(
+    #     in_chan=2,
+    #     out_chan=480 * 6,
+    #     l_hidden=[256, 512, 1024, 2048, ],
+    #     activation=['gelu', 'gelu', 'gelu', 'gelu',],
+    #     out_activation='linear'
+    # )
+
+    encoder = FC_traj2latent(
+        in_chan=201*2,
         out_chan=2,
         l_hidden=[2048, 1024, 512, 256, ],
-        activation=['gelu', 'gelu', 'gelu', 'gelu',],
-        out_activation='linear'
-    )
-    
-    decoder = FC_vec2SE3(
-        in_chan=2,
-        out_chan=480 * 6,
-        l_hidden=[256, 512, 1024, 2048, ],
-        activation=['gelu', 'gelu', 'gelu', 'gelu',],
-        out_activation='linear'
+        
     )
     
     mmp = MMP(encoder, decoder)
