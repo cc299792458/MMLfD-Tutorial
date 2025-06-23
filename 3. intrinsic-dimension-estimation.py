@@ -1,8 +1,7 @@
-from loader.Pouring_dataset import Pouring
+import skdim
 import torch
 import matplotlib.pyplot as plt
-from tqdm import tqdm
-import skdim
+from loader.Pouring_dataset import Pouring
 
 ds = Pouring()
 X = ds.traj_data_
@@ -23,22 +22,22 @@ plt.hlines(0.99, xmin=1, xmax=17, colors='tab:red', linestyles='--')
 plt.title("Global PCA (cumulated explained variance)")
 plt.show()
 
-skdim.id.TwoNN(0.1).fit_transform(X)
+print(skdim.id.TwoNN(0.1).fit_transform(X))
 # Facco, E. et al. (2019), 
 # Estimating the intrinsic dimension of datasets by a minimal neighborhood information., 
 # Nature.
 
-skdim.id.FisherS().fit_transform(X)
+print(skdim.id.FisherS().fit_transform(X))
 # Albergante, L., et al. (2019), 
 # Estimating the effective dimension of large biological datasets using Fisher separability analysis., 
 # 2019 International Joint Conference on Neural Networks, IEEE.
 
-skdim.id.MADA().fit_transform(X)
+print(skdim.id.MADA().fit_transform(X))
 # Farahmand, et al. (2007), 
 # Manifold-adaptive dimension estimation., 
 # International Conference on Machine Learning.
 
-skdim.id.MLE().fit_transform(X)
+print(skdim.id.MLE().fit_transform(X))
 # Levina, E. and Bickel., P. J. (2005), 
 # Maximum likelihood estimation of intrinsic dimension. 
 # Advances in Neural Information Processing Systems 17, 777-784. MIT Press.
