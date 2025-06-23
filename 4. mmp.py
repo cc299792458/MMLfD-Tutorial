@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from typing import List, Dict, Union
 
 from models.mmp import MMP
-from loader.Toy_dataset import Toy
+from loader.Toy_dataset import Toy, toy_visualizer, pallete
 from loader.Pouring_dataset import Pouring
 from models.modules import FC_SE32vec, FC_vec2SE3
 from models.modules import FC_traj2latent, FC_latent2traj
@@ -54,7 +54,7 @@ def main():
         )
     
     # Initialize model
-    mmp = MMP(encoder, decoder, type_='SE3' if pouring else 'linear').to(device)
+    mmp = MMP(encoder, decoder, type_='SE3' if pouring else 'linear', smoothness_weight=10).to(device)
     data = ds.traj_data_ if pouring else ds.data
     
     # Training or loading pretrained model
@@ -152,6 +152,12 @@ def main():
     plt.tight_layout()
     plt.show()
 
+    if not pouring:
+        reconstruction = mmp(data.to(device))
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3))
+        toy_visualizer(ds.env, axs[0], traj=ds.data.cpu().numpy(), label=ds.targets)
+        toy_visualizer(ds.env, axs[1], traj=reconstruction.detach().cpu().numpy(), label=ds.targets)
+        plt.show()
 
 if __name__ == '__main__':
     main()
