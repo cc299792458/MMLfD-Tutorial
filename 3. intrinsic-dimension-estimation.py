@@ -1,10 +1,13 @@
 import skdim
 import torch
 import matplotlib.pyplot as plt
+from loader.Toy_dataset import Toy
 from loader.Pouring_dataset import Pouring
 
-ds = Pouring()
-X = ds.traj_data_
+# ds = Pouring()
+# X = ds.traj_data_
+ds = Toy()
+X = ds.data
 bs = len(X)
 X = X.view(bs, -1)
 
