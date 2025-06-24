@@ -52,7 +52,7 @@ def main():
     
     dl = torch.utils.data.DataLoader(ds, batch_size=10)
     
-    mmp = NRMMP(encoder, decoder, approx_order=1, kernel={'type': 'binary', 'lambda':0.05})
+    mmp = NRMMP(encoder, decoder, approx_order=1, type_='SE3' if pouring else 'linear', kernel={'type': 'binary', 'lambda':0.05})
     mmp.to(device)
 
     # Training or loading pretrained model
