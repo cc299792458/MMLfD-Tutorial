@@ -122,8 +122,8 @@ class MMP(nn.Module):
         return {"SE3traj_data_and_recon#": fig}
  
 class NRMMP(MMP):
-    def __init__(self, encoder, decoder, approx_order=1, kernel=None):
-        super().__init__(encoder, decoder)
+    def __init__(self, encoder, decoder, smoothness_weight=10, type_='SE3', approx_order=1, kernel=None):
+        super().__init__(encoder, decoder, smoothness_weight, type_)
         self.encoder = encoder
         self.decoder = decoder
         self.approx_order = approx_order

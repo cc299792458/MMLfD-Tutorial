@@ -2,33 +2,55 @@ import torch
 import copy
 import matplotlib.pyplot as plt
 from loader.Pouring_dataset import Pouring
+from loader.Toy_dataset import Toy, toy_visualizer
 from models.mmp import NRMMP
 from models.modules import FC_SE32vec, FC_vec2SE3
+from models.modules import FC_traj2latent, FC_latent2traj
 
 # Configuration
-device = f'cuda:0' if torch.cuda.is_available() else 'cpu'
-use_pretrained = True
+device = 'cuda:0'
+use_pretrained = False
+pouring = True  # True means Pouring, False means Toy
 
 def main():
     # Initialize dataset and model
-    ds = Pouring(graph={'bs_nn': 2, 'num_nn': 6, 'include_center': True, 'replace': False})
+    if pouring:
+        ds = Pouring(graph={'bs_nn': 2, 'num_nn': 6, 'include_center': True, 'replace': False})
+
+        encoder = FC_SE32vec(
+            in_chan=480 * 12,
+            out_chan=2,
+            l_hidden=[2048, 1024, 512, 256],
+            activation=['gelu', 'gelu', 'gelu', 'gelu'],
+            out_activation='linear'
+        )
+        
+        decoder = FC_vec2SE3(
+            in_chan=2,
+            out_chan=480 * 6,
+            l_hidden=[256, 512, 1024, 2048],
+            activation=['gelu', 'gelu', 'gelu', 'gelu'],
+            out_activation='linear'
+        )
+    
+    else:
+        ds = Toy()
+        encoder = FC_traj2latent(
+            in_chan=201 * 2,
+            out_chan=2,
+            l_hidden=[2048, 1024, 512, 256],
+            activation=['gelu', 'gelu', 'gelu', 'gelu'],
+            out_activation='linear'
+        )
+        decoder = FC_latent2traj(
+            in_chan=2,
+            out_chan=201 * 2,
+            l_hidden=[256, 512, 1024, 2048],
+            activation=['gelu', 'gelu', 'gelu', 'gelu'],
+            out_activation='linear'
+        )
+    
     dl = torch.utils.data.DataLoader(ds, batch_size=10)
-    
-    encoder = FC_SE32vec(
-        in_chan=480 * 12,
-        out_chan=2,
-        l_hidden=[2048, 1024, 512, 256],
-        activation=['gelu', 'gelu', 'gelu', 'gelu'],
-        out_activation='linear'
-    )
-    
-    decoder = FC_vec2SE3(
-        in_chan=2,
-        out_chan=480 * 6,
-        l_hidden=[256, 512, 1024, 2048],
-        activation=['gelu', 'gelu', 'gelu', 'gelu'],
-        out_activation='linear'
-    )
     
     mmp = NRMMP(encoder, decoder, approx_order=1, kernel={'type': 'binary', 'lambda':0.05})
     mmp.to(device)
@@ -59,10 +81,10 @@ def main():
                     best_mmp = copy.copy(mmp)
                     print(f"best_val_loss is updated to {best_val_loss}")
         
-        torch.save({
-            "list_encoded_data": list_encoded_data, 
-            "model_state": best_mmp.state_dict()
-        }, "results/nrmmp.pkl")
+        # torch.save({
+        #     "list_encoded_data": list_encoded_data, 
+        #     "model_state": best_mmp.state_dict()
+        # }, "results/nrmmp.pkl")
 
     # Visualization functions
     def plot_epoch(epoch):
@@ -71,13 +93,16 @@ def main():
             c = 'lightskyblue' if l[0] == 0 else 'darkmagenta'
             s = 50 if l[1] == 0 else 100
             
-            marker = {
-                1: '<',
-                2: '3',
-                3: '+',
-                4: '4',
-                5: '>'
-            }.get(l[2], 'o')
+            if l[2] == 1:
+                marker = '<'
+            elif l[2] == 2:
+                marker = '3'
+            elif l[2] == 3:
+                marker = '+'
+            elif l[2] == 4:
+                marker = '4'
+            elif l[2] == 5:
+                marker = '>'
             
             plt.scatter(z_data[0], z_data[1], s=s, c=c, marker=marker)
         
@@ -90,7 +115,6 @@ def main():
     print("\nVisualizing training progression:")
     for epoch in range(0, len(list_encoded_data), max(1, len(list_encoded_data)//10)):
         plot_epoch(epoch)
-        input("Press Enter to continue...")
 
     # Final visualization
     print("\nFinal optimized embedding:")
@@ -101,13 +125,16 @@ def main():
         c = 'lightskyblue' if l[0] == 0 else 'darkmagenta'
         s = 50 if l[1] == 0 else 100
         
-        marker = {
-            1: '<',
-            2: '3',
-            3: '+',
-            4: '4',
-            5: '>'
-        }.get(l[2], 'o')
+        if l[2] == 1:
+            marker = '<'
+        elif l[2] == 2:
+            marker = '3'
+        elif l[2] == 3:
+            marker = '+'
+        elif l[2] == 4:
+            marker = '4'
+        elif l[2] == 5:
+            marker = '>'
         
         plt.scatter(z_data[0], z_data[1], s=s, c=c, marker=marker)
     
