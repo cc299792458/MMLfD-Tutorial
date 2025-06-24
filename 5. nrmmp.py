@@ -11,6 +11,7 @@ from models.modules import FC_traj2latent, FC_latent2traj
 device = 'cuda:0'
 use_pretrained = False
 pouring = True  # True means Pouring, False means Toy
+save_model = True
 
 def main():
     # Initialize dataset and model
@@ -81,10 +82,11 @@ def main():
                     best_mmp = copy.copy(mmp)
                     print(f"best_val_loss is updated to {best_val_loss}")
         
-        # torch.save({
-        #     "list_encoded_data": list_encoded_data, 
-        #     "model_state": best_mmp.state_dict()
-        # }, "results/nrmmp.pkl")
+        if save_model:
+            torch.save({
+                "list_encoded_data": list_encoded_data, 
+                "model_state": best_mmp.state_dict()
+            }, "results/nrmmp.pkl")
 
     # Visualization functions
     def plot_epoch(epoch):
@@ -106,7 +108,7 @@ def main():
             
             plt.scatter(z_data[0], z_data[1], s=s, c=c, marker=marker)
         
-        plt.title(f"Epoch {epoch}")
+        plt.title(f"Epoch {epoch * 10}")
         plt.xlabel("Dimension 1")
         plt.ylabel("Dimension 2")
         plt.show()
@@ -142,11 +144,11 @@ def main():
     data1 = encoded_data[ds.labels_[:, 0] == 0]
     data2 = encoded_data[ds.labels_[:, 0] == 1]
     
-    for x1, x2 in zip(data1[:-1], data1[1:]):
-        plt.plot([x1[0], x2[0]], [x1[1], x2[1]], '--', c='lightskyblue', alpha=0.5)
+    # for x1, x2 in zip(data1[:-1], data1[1:]):
+    #     plt.plot([x1[0], x2[0]], [x1[1], x2[1]], '--', c='lightskyblue', alpha=0.5)
     
-    for x1, x2 in zip(data2[:-1], data2[1:]):
-        plt.plot([x1[0], x2[0]], [x1[1], x2[1]], '--', c='darkmagenta', alpha=0.5)
+    # for x1, x2 in zip(data2[:-1], data2[1:]):
+    #     plt.plot([x1[0], x2[0]], [x1[1], x2[1]], '--', c='darkmagenta', alpha=0.5)
     
     plt.title("Final Embedding Space with Trajectories")
     plt.xlabel("Dimension 1")

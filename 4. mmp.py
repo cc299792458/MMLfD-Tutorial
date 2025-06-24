@@ -15,7 +15,8 @@ def main():
     # Configuration
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     use_pretrained = os.path.exists("results/mmp.pkl")
-    pouring = False  # True means Pouring, False means Toy
+    pouring = True  # True means Pouring, False means Toy
+    save_model = True
     
     # Initialize dataset and dataloader
     ds = Pouring() if pouring else Toy()
@@ -93,11 +94,12 @@ def main():
                     best_mmp = copy.copy(mmp)
                     print(f"best_val_loss is updated to {best_val_loss:.4f}")
         
-        # Save model (commented out as in original)
-        # torch.save({
-        #     "list_encoded_data": list_encoded_data, 
-        #     "model_state": best_mmp.state_dict()
-        # }, "results/mmp.pkl")
+        # Save model
+        if save_model:
+            torch.save({
+                "list_encoded_data": list_encoded_data, 
+                "model_state": best_mmp.state_dict()
+            }, "results/mmp.pkl")
 
     # Plotting
     plt.figure(figsize=(12, 5))
