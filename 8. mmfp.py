@@ -4,9 +4,9 @@ import torch
 import imageio
 import matplotlib.pyplot as plt
 
+from tqdm import tqdm
+from models.mmp import NRMMP
 from models.lfm import FlowMatching
-
-from models.mmp import MMP, NRMMP
 from loader.Pouring_dataset import PouringText
 from models.modules import FC_SE32vec, FC_vec2SE3, vf_FC_vec, FC_vec
 
@@ -119,7 +119,7 @@ test_texts = [
     200*["Give me some wine, and pour it from the center."]
 ]
 list_z_samples = []
-for text in test_texts:
+for text in tqdm(test_texts):
     list_z_samples.append(best_lfm.sample(
         text, 
         dt=0.1, 
@@ -129,11 +129,11 @@ for text in test_texts:
     
 fig, axs = plt.subplots(1, 5, figsize=(15, 3))
 
-# axs[0].set_title("Give me something to drink.")
-# axs[1].set_title("Give me some water.")
-# axs[2].set_title("Give me some wine.")
-# axs[3].set_title("Give me some water, \n and pour it \n from the very right.")
-# axs[4].set_title("Give me some wine, \n and pour it \n from the center.")
+axs[0].set_title("Give me something to drink.")
+axs[1].set_title("Give me some water.")
+axs[2].set_title("Give me some wine.")
+axs[3].set_title("Give me some water, \n and pour it \n from the very right.")
+axs[4].set_title("Give me some wine, \n and pour it \n from the center.")
 
 for i, z_samples in enumerate(list_z_samples):
     for z_data, l in zip(encoded_data, ds.labels_):
@@ -158,8 +158,8 @@ for i, z_samples in enumerate(list_z_samples):
         axs[i].scatter(z_data[0], z_data[1], s=s, c=c, marker=marker)
     axs[i].scatter(z_samples[:,0], z_samples[:,1], c='tab:gray', alpha=0.3)
     axs[i].axis('off')
-    axs[i].set_xlim(-24, 8)
-    axs[i].set_ylim(-16, 16)
+    # axs[i].set_xlim(-24, 8)
+    # axs[i].set_ylim(-16, 16)
 plt.show()
 
 test_texts = [
@@ -170,7 +170,7 @@ test_texts = [
     200*["Give me some wine, and pour it from the center."]
 ]
 list_z_trajs= []
-for text in test_texts:
+for text in tqdm(test_texts):
     list_z_trajs.append(best_lfm.sample(
         text, 
         dt=0.1, 
@@ -205,8 +205,8 @@ for j, z_trajs in enumerate(list_z_trajs):
             axs[j ,i].scatter(z_data[0], z_data[1], s=s, c=c, marker=marker)
         axs[j, i].scatter(z_samples[:,0], z_samples[:,1], c='tab:gray', alpha=0.3)
         axs[j, i].axis('off')
-        axs[j, i].set_xlim(-24, 8)
-        axs[j, i].set_ylim(-16, 16)
+        # axs[j, i].set_xlim(-24, 8)
+        # axs[j, i].set_ylim(-16, 16)
 plt.show()
 
 def save_figures_to_gif(z_trajs, gif_filename, duration=0.5):
@@ -242,8 +242,8 @@ def save_figures_to_gif(z_trajs, gif_filename, duration=0.5):
             plt.scatter(z_data[0], z_data[1], s=s, c=c, marker=marker)
         plt.scatter(z_samples[:,0], z_samples[:,1], c='tab:gray', alpha=0.3)
         plt.axis('off')
-        plt.xlim(-24, 8)
-        plt.ylim(-16, 16)
+        # plt.xlim(-24, 8)
+        # plt.ylim(-16, 16)
         plt.title(f"ODE trajectory (t={time} s)")
         
         filename = f"{temp_dir}/plot_{i}.png"
@@ -270,7 +270,7 @@ test_texts = [
     200*["Give me some wine, and pour it from the center."]
 ]
 list_z_trajs= []
-for text in test_texts:
+for text in tqdm(test_texts):
     list_z_trajs.append(best_lfm.sample(
         text, 
         dt=0.01, 

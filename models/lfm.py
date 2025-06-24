@@ -10,7 +10,7 @@ import copy
 
 from tqdm import tqdm
 from utils.utils import SE3smoothing
-sbert_model = SentenceTransformer('bert-base-nli-mean-tokens')
+sbert_model = SentenceTransformer('./bert-base-nil-mean-tokens')
 
 class FlowMatching(nn.Module):
     def __init__(

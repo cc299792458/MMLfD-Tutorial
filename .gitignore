@@ -2,3 +2,4 @@ results/mmp.pkl
 results/nrmmp.pkl
 results/nrmmfp.pkl
 *.pyc
+bert-base-nil-mean-tokens/
