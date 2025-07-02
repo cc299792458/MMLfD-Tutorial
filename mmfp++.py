@@ -180,8 +180,8 @@ z = (z - z_mean) / (z_std + 1e-8)
 z_dataset = TensorDataset(z, ds.targets)
 z_dataloader = DataLoader(z_dataset, batch_size=15)
 
-epochs = 5_000
-step_size = 0.01
+epochs = 20_000
+step_size = 0.001
 
 cfm = ConditionalFlowMatching(input_dim=latent_dim, cond_dim=0).to(device)
 opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
