@@ -2,10 +2,12 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
+from tqdm import tqdm
 from models.mmppp import MMPpp
 from models.modules import FC_vec
+from flow_matching.solver import ODESolver
 from flow_matching.utils import ModelWrapper
-from flow_matching.solver import Solver, ODESolver
+from torch.distributions import Independent, Normal
 from models.lbf import LfD, Gaussian_basis, phi, vbf
 from torch.utils.data import TensorDataset, DataLoader
 from loader.Toy_dataset import Toy, toy_visualizer, pallete
@@ -179,6 +181,7 @@ z_dataset = TensorDataset(z, ds.targets)
 z_dataloader = DataLoader(z_dataset, batch_size=15)
 
 epochs = 5_000
+step_size = 0.01
 
 cfm = ConditionalFlowMatching(input_dim=latent_dim, cond_dim=0).to(device)
 opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
@@ -225,8 +228,50 @@ wrapped_cfm = WrappedModel(cfm)
 solver = ODESolver(velocity_model=wrapped_cfm)
 
 x_init = torch.randn((n_samples, latent_dim), dtype=torch.float32, device=device)
-time_grid = torch.linspace(0, 1, 10)
+time_grid = torch.linspace(0, 1, 10).to(device)
+
+gaussian_log_density = Independent(Normal(torch.zeros(2, device=device), torch.ones(2, device=device)), 1).log_prob
+
+num_acc = 10
+log_p_acc = 0
+for i in tqdm(range(num_acc)):
+    _, log_p = solver.compute_likelihood(
+        x_1=z, method='midpoint', step_size=step_size, 
+        exact_divergence=False, log_p0=gaussian_log_density, device=device
+    )
+    log_p_acc += log_p
+
+log_p_acc /= num_acc
+
+# compute with exact divergence
+_, exact_log_p = solver.compute_likelihood(
+    x_1=z, method='midpoint', step_size=step_size, 
+    exact_divergence=True, log_p0=gaussian_log_density, device=device
+)
+
+likelihood = torch.exp(log_p_acc).cpu()
+exact_likelihood = torch.exp(exact_log_p).cpu()
+
 sol = solver.sample(x_init=x_init, time_grid=time_grid, method='midpoint', step_size=0.01, device=device)
+num_acc = 10
+log_p_acc = 0
+for i in tqdm(range(num_acc)):
+    _, log_p = solver.compute_likelihood(
+        x_1=sol, method='midpoint', step_size=step_size, 
+        exact_divergence=False, log_p0=gaussian_log_density, device=device
+    )
+    log_p_acc += log_p
+
+log_p_acc /= num_acc
+
+_, exact_log_p = solver.compute_likelihood(
+    x_1=sol, method='midpoint', step_size=step_size, 
+    exact_divergence=True, log_p0=gaussian_log_density, device=device
+)
+
+sol_likelihood = torch.exp(log_p_acc).cpu()
+sol_exact_likelihood = torch.exp(exact_log_p).cpu()
+likelihood_mask = (sol_likelihood > likelihood.min()) & (sol_exact_likelihood > exact_likelihood.min())
 
 # z_samples = cfm.sample(n_samples, device=device) * z_std + z_mean
 z_samples = sol * z_std + z_mean
@@ -239,10 +284,12 @@ axs[1].axis('equal')
 axs[1].axis('off')
 
 # Additional latent points
-axs[1].scatter(z_samples.cpu()[:,0], z_samples.cpu()[:,1], alpha=0.6, marker='*', color='grey')
+axs[1].scatter(z_samples.cpu()[:,0], z_samples.cpu()[:,1], alpha=0.6, marker='*', color=["grey" if x else "purple" for x in likelihood_mask])
 axs[1].set_title("Latent space")
 # Subplot 3: Generated trajectories
-toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=torch.ones(q_traj.size(0), dtype=torch.int) * 10, alpha=0.5)
+
+label = torch.where(likelihood_mask, torch.tensor(10), torch.tensor(8))
+toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=label, alpha=0.5)
 axs[2].set_title("Generated trajectories")
 plt.show()
 
@@ -289,10 +336,52 @@ axs[0].set_title("Demonstration trajectories")
 wrapped_cfm = WrappedModel(cfm)
 solver = ODESolver(velocity_model=wrapped_cfm)
 
+gaussian_log_density = Independent(Normal(torch.zeros(2, device=device), torch.ones(2, device=device)), 1).log_prob
+
+num_acc = 10
+log_p_acc = 0
+for i in tqdm(range(num_acc)):
+    _, log_p = solver.compute_likelihood(
+        x_1=z, method='midpoint', step_size=step_size, exact_divergence=False, 
+        log_p0=gaussian_log_density, cond=ds.targets.to(device).reshape(-1, 1), device=device
+    )
+    log_p_acc += log_p
+
+log_p_acc /= num_acc
+
+# compute with exact divergence
+_, exact_log_p = solver.compute_likelihood(
+    x_1=z, method='midpoint', step_size=step_size, exact_divergence=True, 
+    log_p0=gaussian_log_density, cond=ds.targets.to(device).reshape(-1, 1), device=device
+)
+
+likelihood = torch.exp(log_p_acc).cpu()
+exact_likelihood = torch.exp(exact_log_p).cpu()
+
 x_init = torch.randn((n_samples, latent_dim), dtype=torch.float32, device=device)
-time_grid = torch.linspace(0, 1, 10)
+time_grid = torch.linspace(0, 1, 10).to(device)
 cond_samples = torch.arange(100, device=device) % 3
-sol = solver.sample(x_init=x_init, time_grid=time_grid, method='midpoint', step_size=0.01, cond=cond_samples.reshape(-1, 1), device=device)
+
+sol = solver.sample(x_init=x_init, time_grid=time_grid, method='midpoint', step_size=step_size, cond=cond_samples.reshape(-1, 1), device=device)
+num_acc = 10
+log_p_acc = 0
+for i in tqdm(range(num_acc)):
+    _, log_p = solver.compute_likelihood(
+        x_1=sol, method='midpoint', step_size=step_size, 
+        exact_divergence=False, log_p0=gaussian_log_density, device=device
+    )
+    log_p_acc += log_p
+
+log_p_acc /= num_acc
+
+_, exact_log_p = solver.compute_likelihood(
+    x_1=sol, method='midpoint', step_size=step_size, 
+    exact_divergence=True, log_p0=gaussian_log_density, device=device
+)
+
+sol_likelihood = torch.exp(log_p_acc).cpu()
+sol_exact_likelihood = torch.exp(exact_log_p).cpu()
+likelihood_mask = (sol_likelihood > likelihood.min()) & (sol_exact_likelihood > exact_likelihood.min())
 
 # z_samples = cfm.sample(n_samples, cond_samples.reshape(-1, 1), device=device) * z_std + z_mean
 z_samples = sol * z_std + z_mean
@@ -305,9 +394,13 @@ axs[1].axis('equal')
 axs[1].axis('off')
 
 # Additional latent points
-axs[1].scatter(z_samples.cpu()[:,0], z_samples.cpu()[:,1], alpha=0.6, marker='*', color=[pallete[i] for i in cond_samples])
+axs[1].scatter(
+    z_samples.cpu()[:,0], z_samples.cpu()[:,1], alpha=0.6, marker='*', 
+    color=[pallete[cond] if likelihood else pallete[8] for cond, likelihood in zip(cond_samples, likelihood_mask)]
+)
 axs[1].set_title("Latent space")
 # Subplot 3: Generated trajectories
-toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=cond_samples, alpha=0.5)
+label = torch.where(likelihood_mask, cond_samples.cpu(), torch.tensor(8))
+toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=label, alpha=0.5)
 axs[2].set_title("Generated trajectories")
 plt.show()
