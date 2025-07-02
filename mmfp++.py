@@ -170,7 +170,7 @@ opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
 
 loss_history = []
 
-for epoch in range(3000):
+for epoch in range(10_000):
     for x_1, label in z_dataloader:
         opt.zero_grad()
         loss, x_t, dx_t_pred, dx_t = cfm.compute_loss(x1=x_1)
@@ -195,6 +195,7 @@ plt.ylabel("Loss")
 plt.title("Training Loss Curve")
 plt.legend()
 plt.grid(True)
+plt.show()
 
 # Plot: Flow-Based Model reconstruction
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
@@ -208,18 +209,72 @@ recon_w = decoder(z_samples).cpu()
 q_traj = vbf(tau, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
 # Subplot 2: Latent space with samples
-axs[1].scatter(latent_values[:,0], latent_values[:,1], c=color, marker='x')
+axs[1].scatter(latent_values[:,0], latent_values[:,1], c=color, marker='x', s=100)
 axs[1].axis('equal')
 axs[1].axis('off')
 
 # Additional latent points
-axs[1].scatter(
-    z_samples.cpu()[:,0], z_samples.cpu()[:,1],
-    # c=[pallete[i] for i in 10-dict_samples['cluster_samples']],
-    alpha=0.6, marker='*',
-)
+axs[1].scatter(z_samples.cpu()[:,0], z_samples.cpu()[:,1], alpha=0.6, marker='*', color='grey')
 axs[1].set_title("Latent space")
 # Subplot 3: Generated trajectories
-toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=torch.ones(q_traj.size(0), dtype=torch.int) * 10)
+toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=torch.ones(q_traj.size(0), dtype=torch.int) * 10, alpha=0.5)
+axs[2].set_title("Generated trajectories")
+plt.show()
+
+cfm = ConditionalFlowMatching(input_dim=latent_dim, cond_dim=1).to(device)
+opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
+
+loss_history = []
+
+for epoch in range(10_000):
+    for x_1, label in z_dataloader:
+        opt.zero_grad()
+        label = label.reshape(-1, 1).to(device)
+        loss, x_t, dx_t_pred, dx_t = cfm.compute_loss(x1=x_1, cond=label)
+        
+        # Record the loss value (use .item() to get a scalar)
+        loss_history.append(loss.item())
+        
+        # Backpropagation & optimization
+        loss.backward()
+        opt.step()
+
+    # Optional: Print average loss per epoch
+    if epoch % 100 == 0:  # Print every 100 epochs
+        avg_loss = sum(loss_history[-len(z_dataloader):]) / len(z_dataloader)
+        print(f"Epoch {epoch}, Avg Loss: {avg_loss:.4f}")
+
+# Plot the loss curve after training
+plt.figure(figsize=(10, 5))
+plt.plot(loss_history, label="Training Loss")
+plt.xlabel("Iteration")
+plt.ylabel("Loss")
+plt.title("Training Loss Curve")
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Plot: Flow-Based Model reconstruction
+fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+# Subplot 1: Original trajectories
+toy_visualizer(ds.env, axs[0], traj=ds.data, label=torch.concat([training_targets, eval_targets]))
+axs[0].set_title("Demonstration trajectories")
+
+cond_samples = torch.arange(100, device=device) % 3
+z_samples = cfm.sample(n_samples, cond_samples.reshape(-1, 1), device=device) * z_std + z_mean
+recon_w = decoder(z_samples).cpu()
+q_traj = vbf(tau, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
+
+# Subplot 2: Latent space with samples
+axs[1].scatter(latent_values[:,0], latent_values[:,1], c=color, marker='x', s=100)
+axs[1].axis('equal')
+axs[1].axis('off')
+
+# Additional latent points
+axs[1].scatter(z_samples.cpu()[:,0], z_samples.cpu()[:,1], alpha=0.6, marker='*', color=[pallete[i] for i in cond_samples])
+axs[1].set_title("Latent space")
+# Subplot 3: Generated trajectories
+toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=cond_samples, alpha=0.5)
 axs[2].set_title("Generated trajectories")
 plt.show()

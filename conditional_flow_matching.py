@@ -128,7 +128,7 @@ class ConditionalFlowMatching(nn.Module):
             # Create mask for condition dropout
             mask = torch.rand(batch_size, device=x1.device) < self.dropout_prob
             cond_drop = cond.clone()
-            cond_drop[mask] = 0.0  # Drop out conditions
+            cond_drop[mask] = -1.0  # Drop out conditions
             dx_t_pred = self.forward(path_sample.x_t, t, cond=cond_drop)
         else:
             dx_t_pred = self.forward(path_sample.x_t, t, cond=cond)
@@ -169,7 +169,7 @@ class ConditionalFlowMatching(nn.Module):
         x = torch.randn(batch_size, self.input_dim, device=device)
         
         # Create null condition tensor
-        null_cond = torch.zeros(batch_size, self.cond_dim, device=device) if self.cond_dim else None
+        null_cond = -torch.ones(batch_size, self.cond_dim, device=device) if self.cond_dim else None
         
         # Time steps from 1 to 0 (reverse process)
         timesteps = torch.linspace(1, 0, steps, device=device)
