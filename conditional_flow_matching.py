@@ -137,7 +137,26 @@ class ConditionalFlowMatching(nn.Module):
         loss = F.mse_loss(dx_t_pred, path_sample.dx_t)
         
         return loss, path_sample.x_t, dx_t_pred, path_sample.dx_t
-    
+
+    def velocity(self, x, t, cond, guidance_scale=1.5, device='cpu'):
+        batch_size = x.size(0)
+
+        # Create null condition tensor
+        null_cond = -torch.ones(batch_size, self.cond_dim, device=device) if self.cond_dim else None
+        
+        if guidance_scale <= 0 or cond is None:
+            return self.forward(x, t, cond=null_cond)
+        # Apply classifier-free guidance
+        else:
+            # Predict with null condition (unconditional)
+            v_uncond = self.forward(x, t, cond=null_cond)
+            
+            # Predict with actual condition (conditional)
+            v_cond = self.forward(x, t, cond=cond)
+            
+            # Blend predictions using guidance scale
+            return v_uncond + guidance_scale * (v_cond - v_uncond)
+
     @torch.no_grad()
     def sample(self, num_samples=None, cond=None, steps=100, device='cpu', guidance_scale=1.5):
         """

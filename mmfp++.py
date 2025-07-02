@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 from models.mmppp import MMPpp
 from models.modules import FC_vec
+from flow_matching.utils import ModelWrapper
+from flow_matching.solver import Solver, ODESolver
 from models.lbf import LfD, Gaussian_basis, phi, vbf
 from torch.utils.data import TensorDataset, DataLoader
 from loader.Toy_dataset import Toy, toy_visualizer, pallete
@@ -12,6 +14,13 @@ from conditional_flow_matching import ConditionalFlowMatching
 # Smooth loss curve using moving average
 def smooth_loss(loss_vals, window=100):
     return np.convolve(loss_vals, np.ones(window)/window, mode='valid')
+
+class WrappedModel(ModelWrapper):
+    def forward(self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor=None, device='cpu', **extras):
+        batch_size = x.size(0)
+        t = t.reshape(-1, 1).expand(batch_size, 1)
+        
+        return self.model.velocity(x, t, cond, device=device)
 
 # Device configuration
 device = 'cuda:0'
@@ -158,7 +167,7 @@ for i, (mu, cov) in enumerate(zip(mmppp.gmm.means_, mmppp.gmm.covariances_)):
     )
     
 # Subplot 3: Generated trajectories
-toy_visualizer(ds.env, axs[2], traj=q_traj, label=10-dict_samples['cluster_samples'], )
+toy_visualizer(ds.env, axs[2], traj=q_traj, label=10-dict_samples['cluster_samples'],)
 axs[2].set_title("Generated trajectories")
 plt.show()
 
@@ -212,7 +221,15 @@ fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 toy_visualizer(ds.env, axs[0], traj=ds.data, label=torch.concat([training_targets, eval_targets]))
 axs[0].set_title("Demonstration trajectories")
 
-z_samples = cfm.sample(n_samples, device=device) * z_std + z_mean
+wrapped_cfm = WrappedModel(cfm)
+solver = ODESolver(velocity_model=wrapped_cfm)
+
+x_init = torch.randn((n_samples, latent_dim), dtype=torch.float32, device=device)
+time_grid = torch.linspace(0, 1, 10)
+sol = solver.sample(x_init=x_init, time_grid=time_grid, method='midpoint', step_size=0.01, device=device)
+
+# z_samples = cfm.sample(n_samples, device=device) * z_std + z_mean
+z_samples = sol * z_std + z_mean
 recon_w = decoder(z_samples).cpu()
 q_traj = vbf(tau, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
@@ -269,8 +286,16 @@ fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 toy_visualizer(ds.env, axs[0], traj=ds.data, label=torch.concat([training_targets, eval_targets]))
 axs[0].set_title("Demonstration trajectories")
 
+wrapped_cfm = WrappedModel(cfm)
+solver = ODESolver(velocity_model=wrapped_cfm)
+
+x_init = torch.randn((n_samples, latent_dim), dtype=torch.float32, device=device)
+time_grid = torch.linspace(0, 1, 10)
 cond_samples = torch.arange(100, device=device) % 3
-z_samples = cfm.sample(n_samples, cond_samples.reshape(-1, 1), device=device) * z_std + z_mean
+sol = solver.sample(x_init=x_init, time_grid=time_grid, method='midpoint', step_size=0.01, cond=cond_samples.reshape(-1, 1), device=device)
+
+# z_samples = cfm.sample(n_samples, cond_samples.reshape(-1, 1), device=device) * z_std + z_mean
+z_samples = sol * z_std + z_mean
 recon_w = decoder(z_samples).cpu()
 q_traj = vbf(tau, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
