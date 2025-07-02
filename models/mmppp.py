@@ -65,13 +65,18 @@ class MMPpp(nn.Module):
     def train_step(self, x, optimizer, **kwargs):
         optimizer.zero_grad()
         w = self.get_w_from_traj(x)
-        z = self.encode(w)
-        recon = self.decode(z)
-        loss = ((recon - w) ** 2).view(len(w), -1).mean(dim=1).mean()
+        loss = self.loss_func(w)
         loss.backward()
         optimizer.step()
         return {"loss": loss.item()}
     
+    def loss_func(self, w):
+        z = self.encode(w)
+        recon = self.decode(z)
+        loss = ((recon - w) ** 2).view(len(w), -1).mean(dim=1).mean()
+
+        return loss
+
     def validation_step(self, x, **kwargs):
         w = self.get_w_from_traj(x)
         recon = self(w)
