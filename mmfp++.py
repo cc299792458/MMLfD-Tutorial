@@ -9,6 +9,10 @@ from torch.utils.data import TensorDataset, DataLoader
 from loader.Toy_dataset import Toy, toy_visualizer, pallete
 from conditional_flow_matching import ConditionalFlowMatching
 
+# Smooth loss curve using moving average
+def smooth_loss(loss_vals, window=100):
+    return np.convolve(loss_vals, np.ones(window)/window, mode='valid')
+
 # Device configuration
 device = 'cuda:0'
 num_dof = 2
@@ -165,12 +169,14 @@ z = (z - z_mean) / (z_std + 1e-8)
 z_dataset = TensorDataset(z, ds.targets)
 z_dataloader = DataLoader(z_dataset, batch_size=15)
 
+epochs = 5_000
+
 cfm = ConditionalFlowMatching(input_dim=latent_dim, cond_dim=0).to(device)
 opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
 
 loss_history = []
 
-for epoch in range(10_000):
+for epoch in range(epochs):
     for x_1, label in z_dataloader:
         opt.zero_grad()
         loss, x_t, dx_t_pred, dx_t = cfm.compute_loss(x1=x_1)
@@ -187,12 +193,14 @@ for epoch in range(10_000):
         avg_loss = sum(loss_history[-len(z_dataloader):]) / len(z_dataloader)
         print(f"Epoch {epoch}, Avg Loss: {avg_loss:.4f}")
 
-# Plot the loss curve after training
-plt.figure(figsize=(10, 5))
-plt.plot(loss_history, label="Training Loss")
-plt.xlabel("Iteration")
-plt.ylabel("Loss")
-plt.title("Training Loss Curve")
+window_size = 100
+
+# Plot Unconditional CFM Loss
+plt.figure(figsize=(10,5))
+smoothed = smooth_loss(loss_history, window_size)
+plt.plot(loss_history, alpha=0.2, label="Raw")  # Faint original
+plt.plot(smoothed, label="Smoothed")  # Main smoothed curve
+plt.title("Unconditional CFM Training Loss")
 plt.legend()
 plt.grid(True)
 plt.show()
@@ -226,7 +234,7 @@ opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
 
 loss_history = []
 
-for epoch in range(10_000):
+for epoch in range(epochs):
     for x_1, label in z_dataloader:
         opt.zero_grad()
         label = label.reshape(-1, 1).to(device)
@@ -246,10 +254,10 @@ for epoch in range(10_000):
 
 # Plot the loss curve after training
 plt.figure(figsize=(10, 5))
-plt.plot(loss_history, label="Training Loss")
-plt.xlabel("Iteration")
-plt.ylabel("Loss")
-plt.title("Training Loss Curve")
+smoothed = smooth_loss(loss_history, window_size)
+plt.plot(loss_history, alpha=0.2, label="Raw")  # Faint original
+plt.plot(smoothed, label="Smoothed")  # Main smoothed curve
+plt.title("Conditional CFM Training Loss")
 plt.legend()
 plt.grid(True)
 plt.show()
