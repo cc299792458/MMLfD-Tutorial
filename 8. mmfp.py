@@ -11,7 +11,7 @@ from loader.Pouring_dataset import PouringText
 from models.modules import FC_SE32vec, FC_vec2SE3, vf_FC_vec, FC_vec
 
 device = f'cuda:0'
-use_pretrained = True
+use_pretrained = False
 
 encoder = FC_SE32vec(
     in_chan=480*12,
@@ -55,7 +55,8 @@ lfm = FlowMatching(
     velocity_field,
     text_embedder,
     z_dim=2,
-    mmp=nrmmp
+    mmp=nrmmp,
+    sigma_1=0.0
 )
 lfm.to(device)
 

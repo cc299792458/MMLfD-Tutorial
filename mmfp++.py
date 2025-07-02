@@ -1,10 +1,13 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+
 from models.mmppp import MMPpp
 from models.modules import FC_vec
-from loader.Toy_dataset import Toy, toy_visualizer, pallete
 from models.lbf import LfD, Gaussian_basis, phi, vbf
+from torch.utils.data import TensorDataset, DataLoader
+from loader.Toy_dataset import Toy, toy_visualizer, pallete
+from conditional_flow_matching import ConditionalFlowMatching
 
 # Device configuration
 device = 'cuda:0'
@@ -27,8 +30,8 @@ axs.set_title("Demonstration trajectories")
 plt.show()
 
 # Basis function calculations
-z = torch.linspace(0, 1, 100).view(1, -1, 1)
-basis_values = Gaussian_basis(z)
+tau = torch.linspace(0, 1, 100).view(1, -1, 1)
+basis_values = Gaussian_basis(tau)
 phi_values = phi(basis_values)
 
 # LfD initialization
@@ -36,7 +39,7 @@ training_w = LfD(training_data, mode='vmp', via_points=[[0.8, 0.8], [-0.8, -0.8]
 eval_w = LfD(eval_data, mode='vmp', via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
 # VMP trajectory reconstruction
-vmp_recon_curve = vbf(z, phi_values, torch.concat([training_w, eval_w], dim=0), via_points=[[0.8, 0.8], [-0.8, -0.8]])
+vmp_recon_curve = vbf(tau, phi_values, torch.concat([training_w, eval_w], dim=0), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
 # DataLoader setup
 dl = torch.utils.data.DataLoader(ds, batch_size=5)
@@ -92,7 +95,7 @@ axs[1].set_title("Latent space")
 
 # Subplot 3: AE reconstructed trajectories
 recon_w = mmppp.decode(mmppp.encode(mmppp.get_w_from_traj(ds.data.to(device)))).detach().cpu()
-ae_recon_curve = vbf(z, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
+ae_recon_curve = vbf(tau, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
 toy_visualizer(ds.env, axs[2], traj=ds.data, label=torch.tensor(len(ds.targets)*[10]), alpha=0.5)
 toy_visualizer(ds.env, axs[2], traj=ae_recon_curve, label=torch.concat([training_targets, eval_targets]))
@@ -100,7 +103,7 @@ axs[2].set_title("AE recon trajectories")
 plt.show()
 
 n_components = 3
-n_samples = 10
+n_samples = 100
 
 # Plot: GMM reconstruction
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
@@ -155,5 +158,68 @@ toy_visualizer(ds.env, axs[2], traj=q_traj, label=10-dict_samples['cluster_sampl
 axs[2].set_title("Generated trajectories")
 plt.show()
 
-# Plot: Flow-Based Model reconstruction
+# Prepare data
+z = encoder(w).detach()
+z_mean, z_std = z.mean(dim=0), z.std(dim=0)
+z = (z - z_mean) / (z_std + 1e-8)
+z_dataset = TensorDataset(z, ds.targets)
+z_dataloader = DataLoader(z_dataset, batch_size=15)
 
+cfm = ConditionalFlowMatching(input_dim=latent_dim, cond_dim=0).to(device)
+opt = torch.optim.Adam(cfm.parameters(), lr=1e-4, weight_decay=1e-6)
+
+loss_history = []
+
+for epoch in range(3000):
+    for x_1, label in z_dataloader:
+        opt.zero_grad()
+        loss, x_t, dx_t_pred, dx_t = cfm.compute_loss(x1=x_1)
+        
+        # Record the loss value (use .item() to get a scalar)
+        loss_history.append(loss.item())
+        
+        # Backpropagation & optimization
+        loss.backward()
+        opt.step()
+
+    # Optional: Print average loss per epoch
+    if epoch % 100 == 0:  # Print every 100 epochs
+        avg_loss = sum(loss_history[-len(z_dataloader):]) / len(z_dataloader)
+        print(f"Epoch {epoch}, Avg Loss: {avg_loss:.4f}")
+
+# Plot the loss curve after training
+plt.figure(figsize=(10, 5))
+plt.plot(loss_history, label="Training Loss")
+plt.xlabel("Iteration")
+plt.ylabel("Loss")
+plt.title("Training Loss Curve")
+plt.legend()
+plt.grid(True)
+
+# Plot: Flow-Based Model reconstruction
+fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+# Subplot 1: Original trajectories
+toy_visualizer(ds.env, axs[0], traj=ds.data, label=torch.concat([training_targets, eval_targets]))
+axs[0].set_title("Demonstration trajectories")
+
+z_samples = cfm.sample(n_samples, device=device) * z_std + z_mean
+recon_w = decoder(z_samples).cpu()
+q_traj = vbf(tau, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
+
+# Subplot 2: Latent space with samples
+axs[1].scatter(latent_values[:,0], latent_values[:,1], c=color, marker='x')
+axs[1].axis('equal')
+axs[1].axis('off')
+
+# Additional latent points
+axs[1].scatter(
+    z_samples.cpu()[:,0], z_samples.cpu()[:,1],
+    # c=[pallete[i] for i in 10-dict_samples['cluster_samples']],
+    alpha=0.6, marker='*',
+)
+axs[1].set_title("Latent space")
+# Subplot 3: Generated trajectories
+toy_visualizer(ds.env, axs[2], traj=q_traj.detach(), label=torch.ones(q_traj.size(0), dtype=torch.int) * 10)
+axs[2].set_title("Generated trajectories")
+plt.show()
