@@ -9,7 +9,9 @@ from models.lbf import LfD, Gaussian_basis, phi, vbf
 # Device configuration
 device = 'cuda:0'
 num_dof = 2
+latent_dim = 2
 num_basis = 30
+traj_len = 201
 
 # Initialize dataset
 ds = Toy(root='datasets/EXP2')
@@ -39,7 +41,7 @@ vmp_recon_curve = vbf(z, phi_values, torch.concat([training_w, eval_w], dim=0), 
 # DataLoader setup
 dl = torch.utils.data.DataLoader(ds, batch_size=5)
 
-# Comparison of original and reconstructed trajectories
+# Plot: VMP reconstruction
 fig, axs = plt.subplots(1, 2, figsize=(10, 5))
 toy_visualizer(ds.env, axs[0], traj=ds.data, label=torch.concat([training_targets, eval_targets]))
 toy_visualizer(ds.env, axs[1], traj=ds.data, label=torch.tensor(len(ds.targets)*[10]), alpha=0.5)
@@ -50,10 +52,10 @@ plt.show()
 
 # Model components
 encoder = FC_vec(
-    in_chan=num_dof * num_basis, out_chan=num_dof, l_hidden=[512, 512], activation=['elu', 'elu'], out_activation='linear'
+    in_chan=num_dof * num_basis, out_chan=latent_dim, l_hidden=[512, 512], activation=['elu', 'elu'], out_activation='linear'
 )
 decoder = FC_vec(
-    in_chan=num_dof, out_chan=num_dof * num_basis, l_hidden=[512, 512], activation=['elu', 'elu'], out_activation='linear'
+    in_chan=latent_dim, out_chan=num_dof * num_basis, l_hidden=[512, 512], activation=['elu', 'elu'], out_activation='linear'
 )
 
 # MMPpp model initialization
@@ -72,6 +74,7 @@ for epoch in range(1000):
     if epoch % 100 == 0:
         print(f"[Epoch: {epoch}] Training Loss: {training_loss:.5f}| Eval Loss: {eval_loss:.5f}")
 
+# Plot: AE reconstruction
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
 # Subplot 1: Original trajectories
@@ -81,7 +84,7 @@ axs[0].set_title("Demonstration trajectories")
 # Subplot 2: Latent space (gray points)
 w = mmppp.get_w_from_traj(ds.data.to(device))
 latent_values = mmppp.encode(w).detach().cpu()
-color = [pallete[data] for data in ds.targets.cpu().numpy()]
+color = [pallete[data] for data in torch.concat([training_targets, eval_targets]).numpy()]
 axs[1].scatter(latent_values[:,0], latent_values[:,1], c=color, marker='x')
 axs[1].axis('equal')
 axs[1].axis('off')
@@ -99,6 +102,7 @@ plt.show()
 n_components = 3
 n_samples = 10
 
+# Plot: GMM reconstruction
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
 # Subplot 1: Original trajectories
@@ -111,7 +115,7 @@ axs[1].axis('equal')
 axs[1].axis('off')
 
 mmppp.fit_GMM(ds.data.to(device), n_components=n_components)
-dict_samples = mmppp.sample(n_samples, device=device, traj_len=201)
+dict_samples = mmppp.sample(n_samples, device=device, traj_len=traj_len)
 q_traj = dict_samples['q_traj_samples'].detach().cpu()
 z_samples = dict_samples['z_samples'].detach().cpu()
 sample_y = dict_samples['cluster_samples'].numpy()
@@ -150,3 +154,6 @@ for i, (mu, cov) in enumerate(zip(mmppp.gmm.means_, mmppp.gmm.covariances_)):
 toy_visualizer(ds.env, axs[2], traj=q_traj, label=10-dict_samples['cluster_samples'], )
 axs[2].set_title("Generated trajectories")
 plt.show()
+
+# Plot: Flow-Based Model reconstruction
+
