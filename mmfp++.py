@@ -15,7 +15,7 @@ ds = Toy(root='datasets/EXP2')
 # Initial visualization of dataset
 fig, axs = plt.subplots(1, 1, figsize=(12, 3))
 toy_visualizer(ds.env, axs, traj=ds.data, label=ds.targets)
-axs.set_title("demonstration trajectories")
+axs.set_title("Demonstration trajectories")
 plt.show()
 
 # LfD initialization
@@ -35,37 +35,26 @@ dl = torch.utils.data.DataLoader(ds, batch_size=5)
 # Comparison of original and reconstructed trajectories
 fig, axs = plt.subplots(1, 2, figsize=(6, 3))
 toy_visualizer(ds.env, axs[0], traj=ds.data, label=ds.targets)
+toy_visualizer(ds.env, axs[1], traj=ds.data, label=torch.tensor(len(ds.targets)*[10]))
 toy_visualizer(ds.env, axs[1], traj=vmp_recon_curve, label=ds.targets)
-axs[0].set_title("demonstration trajectories")
+axs[0].set_title("Demonstration trajectories")
 axs[1].set_title("VMP recon trajectories")
 plt.show()
 
 # Model components
 encoder = FC_vec(
-    in_chan=60,
-    out_chan=2,
-    l_hidden=[512, 512],
-    activation=['elu', 'elu'],
-    out_activation='linear'
+    in_chan=60, out_chan=2, l_hidden=[512, 512],
+    activation=['elu', 'elu'], out_activation='linear'
 )
 decoder = FC_vec(
-    in_chan=2,
-    out_chan=60,
-    l_hidden=[512, 512],
-    activation=['elu', 'elu'],
-    out_activation='linear'
+    in_chan=2, out_chan=60, l_hidden=[512, 512],
+    activation=['elu', 'elu'], out_activation='linear'
 )
 
 # MMPpp model initialization
 mmppp = MMPpp(
-    encoder,
-    decoder,
-    dof=2,
-    b=30,
-    h_mul=1,
-    basis='Gaussian',
-    mode='vmp',
-    via_points=[[0.8, 0.8], [-0.8, -0.8]]
+    encoder, decoder, dof=2, b=30, h_mul=1, basis='Gaussian', 
+    mode='vmp', via_points=[[0.8, 0.8], [-0.8, -0.8]]
 )
 mmppp.to(device)
 
@@ -76,7 +65,7 @@ for epoch in range(1000):
         train_results = mmppp.train_step(x.to(device), optimizer=opt)
         train_loss = train_results["loss"]
     if epoch%100 == 0:
-        print(f"[Epoch: {epoch}] Loss: {train_loss}")
+        print(f"[Epoch: {epoch}] Loss: {train_loss:.5f}")
 
 # =============================================================================
 # Visualization Section 1
@@ -90,7 +79,7 @@ fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
 # Subplot 1: Original trajectories
 toy_visualizer(ds.env, axs[0], traj=ds.data, label=ds.targets, alpha=alpha1)
-axs[0].set_title("demonstration trajectories")
+axs[0].set_title("Demonstration trajectories")
 
 # Subplot 2: Latent space (gray points)
 w = mmppp.get_w_from_traj(ds.data.to(device))
@@ -101,25 +90,19 @@ axs[1].axis('equal')
 axs[1].axis('off')
 axs[1].set_title("Latent space")
 
-# Subplot 3: VMP reconstructed trajectories
-mmppp.fit_GMM(ds.data.to(device), n_components=n_components)
-dict_samples = mmppp.sample(n_samples, device=device, traj_len=201)
-q_traj = dict_samples['q_traj_samples'].detach().cpu()
-z_samples = dict_samples['z_samples'].detach().cpu()
-sample_y = dict_samples['cluster_samples'].numpy()
+# Subplot 3: AE reconstructed trajectories
+# mmppp.fit_GMM(ds.data.to(device), n_components=n_components)
+# dict_samples = mmppp.sample(n_samples, device=device, traj_len=201)
+# q_traj = dict_samples['q_traj_samples'].detach().cpu()
+# z_samples = dict_samples['z_samples'].detach().cpu()
+# sample_y = dict_samples['cluster_samples'].numpy()
 
 recon_w = mmppp.decode(mmppp.encode(mmppp.get_w_from_traj(ds.data.to(device)))).detach().cpu()
-basis_values = Gaussian_basis(z)
-phi_values = phi(basis_values)
-vmp_recon_curve = vbf(z, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
+ae_recon_curve = vbf(z, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
-toy_visualizer(
-    ds.env, 
-    axs[2], 
-    traj=vmp_recon_curve, 
-    label=torch.tensor(len(ds.targets)*[10]), 
-    alpha=alpha1)
-axs[2].set_title("VMP recon trajectories")
+toy_visualizer(ds.env, axs[2], traj=ds.data, label=torch.tensor(len(ds.targets)*[10]), alpha=alpha1)
+toy_visualizer(ds.env, axs[2], traj=ae_recon_curve, label=ds.targets, alpha=alpha1)
+axs[2].set_title("AE recon trajectories")
 plt.show()
 
 # =============================================================================
@@ -183,8 +166,6 @@ for i, (mu, cov) in enumerate(zip(mmppp.gmm.means_, mmppp.gmm.covariances_)):
     
 # Subplot 3: Empty trajectories
 recon_w = mmppp.decode(mmppp.encode(mmppp.get_w_from_traj(ds.data.to(device)))).detach().cpu()
-basis_values = Gaussian_basis(z)
-phi_values = phi(basis_values)
 vmp_recon_curve = vbf(z, phi_values, recon_w.view(len(recon_w), -1, 2), via_points=[[0.8, 0.8], [-0.8, -0.8]])
 
 toy_visualizer(
