@@ -180,7 +180,7 @@ z = (z - z_mean) / (z_std + 1e-8)
 z_dataset = TensorDataset(z, ds.targets)
 z_dataloader = DataLoader(z_dataset, batch_size=15)
 
-epochs = 20_000
+epochs = 5_000
 step_size = 0.001
 
 cfm = ConditionalFlowMatching(input_dim=latent_dim, cond_dim=0).to(device)
@@ -367,16 +367,16 @@ num_acc = 10
 log_p_acc = 0
 for i in tqdm(range(num_acc)):
     _, log_p = solver.compute_likelihood(
-        x_1=sol, method='midpoint', step_size=step_size, 
-        exact_divergence=False, log_p0=gaussian_log_density, device=device
+        x_1=sol, method='midpoint', step_size=step_size, exact_divergence=False, 
+        log_p0=gaussian_log_density, cond=cond_samples.reshape(-1, 1), device=device
     )
     log_p_acc += log_p
 
 log_p_acc /= num_acc
 
 _, exact_log_p = solver.compute_likelihood(
-    x_1=sol, method='midpoint', step_size=step_size, 
-    exact_divergence=True, log_p0=gaussian_log_density, device=device
+    x_1=sol, method='midpoint', step_size=step_size, exact_divergence=True, 
+    log_p0=gaussian_log_density, cond=cond_samples.reshape(-1, 1), device=device
 )
 
 sol_likelihood = torch.exp(log_p_acc).cpu()
