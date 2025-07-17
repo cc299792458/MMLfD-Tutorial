@@ -30,7 +30,7 @@ decoder = FC_vec2SE3(
 nrmmp = NRMMP(encoder, decoder, approx_order=1, kernel={'type': 'binary', 'lambda':0.1})
 nrmmp.to(device)
 
-load_dict = torch.load("results/nrmmp.pkl", map_location='cpu')
+load_dict = torch.load("results/nrmmp.pkl", map_location='cpu', weights_only=True)
 ckpt = load_dict["model_state"]
 nrmmp.load_state_dict(ckpt)
 
@@ -75,8 +75,11 @@ else:
     )
     # bset_mmd_avg = torch.inf
     best_val_loss = torch.inf
-    for epoch in range(3000):
+    for epoch in tqdm(range(3000)):
         for traj, text, label in dl:
+            traj = traj.repeat((10, 1, 1, 1))
+            text = text * 10
+            label = label.repeat(10, 1)
             train_results = lfm.train_step(traj.to(device), text, optimizer=opt)
         if (epoch+1)%100==0:
             print(f"[Epoch: {epoch}] Loss: {train_results['loss']}")
